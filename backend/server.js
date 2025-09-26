@@ -6,6 +6,7 @@ const app = express();
 app.use(cors());
 app.use(express.json({ limit: '2mb' }));
 
+// ---------- Helper Functions ----------
 const reserved = new Set([
   'PADAM','ANKHE','VARTTAI','ELAITHE','ALAITHE','MALLI-MALLI','CHATIMPU','CHEPPU'
 ]);
@@ -20,6 +21,7 @@ function pushWarn(arr, lineno, msg, suggestion = null) {
   arr.push({ lineno, type: 'warning', msg, suggestion });
 }
 
+// Preprocess: remove comments (not inside strings) and split lines
 function preprocess(text) {
   return text.replace(/\r\n/g, '\n')
     .split('\n')
@@ -31,7 +33,7 @@ function preprocess(text) {
       for (let i = 0; i < rawLine.length; i++) {
         const char = rawLine[i];
         if (char === '"') inString = !inString;
-        if (char === '#' && !inString) break; 
+        if (char === '#' && !inString) break; // stop at # outside string
         trimmedLine += char;
       }
 
@@ -43,7 +45,8 @@ function preprocess(text) {
     });
 }
 
-function validateExpression(expr, lineno, errors, warnings, symbols, allowString = false) {
+// Validate expressions: integers, identifiers, operators, parentheses, strings
+function validateExpression(expr, lineno, errors, warnings, symbols, allowString=false) {
   const tokens = expr
     .replace(/\(/g, ' ( ')
     .replace(/\)/g, ' ) ')
@@ -55,7 +58,7 @@ function validateExpression(expr, lineno, errors, warnings, symbols, allowString
     .split(/\s+/)
     .filter(Boolean);
 
-  const ops = new Set(['+', '-', '*', '/', '%']);
+  const ops = new Set(['+','-','*','/','%']);
   let paren = 0;
   for (const t of tokens) {
     if (t === '(') { paren++; continue; }
@@ -72,7 +75,7 @@ function validateExpression(expr, lineno, errors, warnings, symbols, allowString
         pushError(errors, lineno, `Type mismatch: variable '${t}' not ANKHE`, `Use ANKHE for integer expressions.`);
         return false;
       }
-      if (allowString && !['ANKHE', 'VARTTAI'].includes(symbols[t].type)) {
+      if (allowString && !['ANKHE','VARTTAI'].includes(symbols[t].type)) {
         pushError(errors, lineno, `Variable '${t}' type not supported for this expression`);
         return false;
       }
@@ -88,6 +91,7 @@ function validateExpression(expr, lineno, errors, warnings, symbols, allowString
   return true;
 }
 
+// ---------- Validator ----------
 function validateYantrabhasha(code) {
   const lines = preprocess(code);
   const errors = [];
@@ -103,14 +107,14 @@ function validateYantrabhasha(code) {
 
     // ---------------- Block headers ----------------
     if (/^ELAITHE\b/.test(trimmed)) {
-      const m = trimmed.match(/^ELAITHE\s*\((.)\)\s\[\s*$/);
-      if (!m) pushError(errors, lineno, `Malformed ELAITHE header, Example: ELAITHE (x < 10) [`);
+      const m = trimmed.match(/^ELAITHE\s*\((.*)\)\s*\[\s*$/);
+      if (!m) pushError(errors, lineno, `Malformed ELAITHE header`, `Example: ELAITHE (x < 10) [`);
       else {
         const cond = m[1].trim();
         const relops = ['==','!=','<=','>=','<','>'];
         let opFound = null;
         for (const op of relops) if (cond.includes(op)) { opFound = op; break; }
-        if (!opFound) pushError(errors, lineno, `Condition must use relational operator, Use: ELAITHE (a == 5) [`);
+        if (!opFound) pushError(errors, lineno, `Condition must use relational operator`, `Use: ELAITHE (a == 5) [`);
         else {
           const parts = cond.split(opFound).map(s=>s.trim());
           if (parts.length !==2) pushError(errors, lineno, `Malformed condition around '${opFound}'`);
@@ -135,13 +139,13 @@ function validateYantrabhasha(code) {
 
     if (/^ALAITHE\b/.test(trimmed)) {
       const m = trimmed.match(/^ALAITHE\s*\[\s*$/);
-      if (!m) pushError(errors, lineno, `Malformed ALAITHE header, Use: ALAITHE [`);
+      if (!m) pushError(errors, lineno, `Malformed ALAITHE header`, `Use: ALAITHE [`);
       blockStack.push({ type: 'ALAITHE', lineno });
       continue;
     }
 
     if (/^MALLI-MALLI\b/.test(trimmed)) {
-      const m = trimmed.match(/^MALLI-MALLI\s*\((.)\)\s\[\s*$/);
+      const m = trimmed.match(/^MALLI-MALLI\s*\((.*)\)\s*\[\s*$/);
       if (!m) { pushError(errors, lineno, `Malformed MALLI-MALLI header`); blockStack.push({type:'MALLI', lineno}); continue; }
       const parts = m[1].split(';').map(s => s.trim()).filter(Boolean);
       if (parts.length !== 3) pushError(errors, lineno, `Loop header must have init;condition;update`);
@@ -149,11 +153,11 @@ function validateYantrabhasha(code) {
         // Init
         const init = parts[0];
         if (/^PADAM\b/.test(init)) {
-          const dm = init.match(/^PADAM\s+([A-Za-z][A-Za-z0-9_])\s:\s*ANKHE\s*=\s*(-?\d+)\s*$/);
+          const dm = init.match(/^PADAM\s+([A-Za-z][A-Za-z0-9_]*)\s*:\s*ANKHE\s*=\s*(-?\d+)\s*$/);
           if (!dm) pushError(errors, lineno, `Malformed loop init. Expected: PADAM i:ANKHE = 0`);
           else { symbols[dm[1]] = { type:'ANKHE', declaredLine: lineno, initialized:true }; }
         } else {
-          const am = init.match(/^([A-Za-z][A-Za-z0-9_])\s=\s*(.+)$/);
+          const am = init.match(/^([A-Za-z][A-Za-z0-9_]*)\s*=\s*(.+)$/);
           if (!am) pushError(errors, lineno, `Loop init must be PADAM declaration or assignment`);
           else if (!(am[1] in symbols)) pushError(errors, lineno, `Loop init uses undeclared variable '${am[1]}'`);
           else validateExpression(am[2], lineno, errors, warnings, symbols);
@@ -172,7 +176,7 @@ function validateYantrabhasha(code) {
 
         // Update
         const upd = parts[2];
-        const updMatch = upd.match(/^([A-Za-z][A-Za-z0-9_])\s=\s*([A-Za-z][A-Za-z0-9_])\s([\+\-])\s*(\d+)\s*$/);
+        const updMatch = upd.match(/^([A-Za-z][A-Za-z0-9_]*)\s*=\s*([A-Za-z][A-Za-z0-9_]*)\s*([\+\-])\s*(\d+)\s*$/);
         if (!updMatch) pushError(errors, lineno, `Loop update must be like 'i = i + 1'`);
         else if (updMatch[1] !== updMatch[2]) pushError(errors, lineno, `Loop update variables do not match`);
         else if (!(updMatch[1] in symbols)) pushWarn(warnings, lineno, `Loop update variable undeclared`);
@@ -190,9 +194,9 @@ function validateYantrabhasha(code) {
 
     // ---------------- Statements ----------------
     if (/^PADAM\b/.test(trimmed)) {
-      const dm = trimmed.match(/^PADAM\s+([A-Za-z][A-Za-z0-9_])\s:\s*(ANKHE|VARTTAI)\s*(=\s*(.+))?\s*;$/);
-      if (!dm) { pushError(errors, lineno, `Malformed PADAM declaration, Example: PADAM x:ANKHE = 0;`); continue; }
-      const [, name, type, _, val] = dm;
+      const dm = trimmed.match(/^PADAM\s+([A-Za-z][A-Za-z0-9_]*)\s*:\s*(ANKHE|VARTTAI)\s*(=\s*(.+))?\s*;$/);
+      if (!dm) { pushError(errors, lineno, `Malformed PADAM declaration`, `Example: PADAM x:ANKHE = 0;`); continue; }
+      const [_, name, type, __, val] = dm;
       if (reserved.has(name)) pushError(errors, lineno, `Identifier '${name}' is reserved`);
       symbols[name] = { type, declaredLine: lineno, initialized: val!=undefined };
       if (val!==undefined) validateExpression(val, lineno, errors, warnings, symbols, type==='VARTTAI');
@@ -215,7 +219,7 @@ function validateYantrabhasha(code) {
     }
 
     // Assignment
-    const am = trimmed.match(/^([A-Za-z][A-Za-z0-9_])\s=\s*(.+);$/);
+    const am = trimmed.match(/^([A-Za-z][A-Za-z0-9_]*)\s*=\s*(.+);$/);
     if (am) {
       const [_, left, right] = am;
       if (!(left in symbols)) pushError(errors, lineno, `Assignment to undeclared variable '${left}'`);
@@ -243,8 +247,16 @@ function validateYantrabhasha(code) {
   return { errors, warnings };
 }
 
+// ---------- Routes ----------
+app.post('/validate', (req, res) => {
+  const { code } = req.body;
+  if (!code) return res.status(400).json({ error: 'Code is required' });
+
+  const results = validateYantrabhasha(code);
+  res.json(results);
+});
+
+// ---------- Start Server ----------
 app.listen(5001, () => {
   console.log('Server running on port 5001');
 });
-
-
