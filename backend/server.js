@@ -20,7 +20,29 @@ function pushWarn(arr, lineno, msg, suggestion = null) {
   arr.push({ lineno, type: 'warning', msg, suggestion });
 }
 
-// Start server
+function preprocess(text) {
+  return text.replace(/\r\n/g, '\n')
+    .split('\n')
+    .map((line, idx) => {
+      let rawLine = line;
+      let trimmedLine = '';
+      let inString = false;
+
+      for (let i = 0; i < rawLine.length; i++) {
+        const char = rawLine[i];
+        if (char === '"') inString = !inString;
+        if (char === '#' && !inString) break; 
+        trimmedLine += char;
+      }
+
+      return {
+        lineno: idx + 1,
+        raw: rawLine,
+        trimmed: trimmedLine.trim()
+      };
+    });
+}
+
 app.listen(5001, () => {
   console.log('Server running on port 5001');
 });
