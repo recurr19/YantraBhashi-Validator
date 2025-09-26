@@ -1,0 +1,26 @@
+{
+  "name": "yantrabhashi-validator",
+  "version": "1.0.0",
+  "description": "Yantrabhasha is a fictional programming language designed for students to build a syntax and semantic validator using Native JavaScript.",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/recurr19/YantraBhashi-Validator.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/recurr19/YantraBhashi-Validator/issues"
+  },
+  "homepage": "https://github.com/recurr19/YantraBhashi-Validator#readme",
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^17.2.2",
+    "express": "^5.1.0"
+  }
+}
