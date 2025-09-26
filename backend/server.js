@@ -43,7 +43,54 @@ function preprocess(text) {
     });
 }
 
+function validateExpression(expr, lineno, errors, warnings, symbols, allowString = false) {
+  const tokens = expr
+    .replace(/\(/g, ' ( ')
+    .replace(/\)/g, ' ) ')
+    .replace(/\+/g, ' + ')
+    .replace(/-/g, ' - ')
+    .replace(/\*/g, ' * ')
+    .replace(/\//g, ' / ')
+    .replace(/%/g, ' % ')
+    .split(/\s+/)
+    .filter(Boolean);
+
+  const ops = new Set(['+', '-', '*', '/', '%']);
+  let paren = 0;
+  for (const t of tokens) {
+    if (t === '(') { paren++; continue; }
+    if (t === ')') { paren--; if (paren < 0) { pushError(errors, lineno, `Unmatched ')' in expression '${expr}'`); return false; } continue; }
+    if (ops.has(t)) continue;
+    if (intLiteral.test(t)) continue;
+    if (allowString && stringLiteral.test(t)) continue;
+    if (reIdentifier.test(t)) {
+      if (!(t in symbols)) {
+        pushError(errors, lineno, `Undeclared variable '${t}' in expression '${expr}'`, `Declare '${t}' before use: PADAM ${t}:ANKHE;`);
+        return false;
+      }
+      if (!allowString && symbols[t].type !== 'ANKHE') {
+        pushError(errors, lineno, `Type mismatch: variable '${t}' not ANKHE`, `Use ANKHE for integer expressions.`);
+        return false;
+      }
+      if (allowString && !['ANKHE', 'VARTTAI'].includes(symbols[t].type)) {
+        pushError(errors, lineno, `Variable '${t}' type not supported for this expression`);
+        return false;
+      }
+      continue;
+    }
+    pushError(errors, lineno, `Invalid token '${t}' in expression '${expr}'`);
+    return false;
+  }
+  if (paren !== 0) {
+    pushError(errors, lineno, `Mismatched parentheses in expression '${expr}'`);
+    return false;
+  }
+  return true;
+}
+
+
 app.listen(5001, () => {
   console.log('Server running on port 5001');
 });
+
 
