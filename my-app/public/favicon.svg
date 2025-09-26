@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
+  <defs>
+    <!-- Gradient for bold geometric icon -->
+    <linearGradient id="yantraGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#41D1FF"/>
+      <stop offset="100%" stop-color="#BD34FE"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Bold geometric shape (triangle-ish stylized gear icon) -->
+  <polygon points="128,24 40,208 216,208" fill="url(#yantraGrad)" />
+
+  <!-- Check mark inside the triangle -->
+  <path d="M88 136 L120 168 L176 104" fill="none" stroke="#041526" stroke-width="16" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
+
