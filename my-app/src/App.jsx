@@ -44,7 +44,7 @@ function App() {
 
       let output = "";
       if (data.errors.length === 0 && data.warnings.length === 0) {
-        output = "✅ No errors or warnings!";
+        output = `<p style="color: green;">✔ No errors or warnings!</p>`;
       } else {
         data.errors.forEach(
           (e) =>
